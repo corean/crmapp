@@ -22,6 +22,13 @@ class CustomersController extends Controller
         $this->render('index', compact('records'));
     }
 
+    public function actionAdd()
+    {
+        $customer = new CustomerRecord;
+        $phone = new PhoneRecord;
+        return $this->render('add', compact('customer', 'phone'));
+    }
+
     private function store(Customer $customer)
     {
         $customer_record = new CustomerRecord();
@@ -51,6 +58,4 @@ class CustomersController extends Controller
 
         return $customer;
     }
-
-
 }

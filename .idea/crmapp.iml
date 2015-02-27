@@ -20,6 +20,7 @@
       <sourceFolder url="file://$MODULE_DIR$/vendor/phpdocumentor/reflection-docblock/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/vendor/doctrine/instantiator/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$" isTestSource="false" packagePrefix="app" />
+      <excludeFolder url="file://$MODULE_DIR$/web/assets" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

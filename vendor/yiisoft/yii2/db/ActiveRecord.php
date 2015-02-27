@@ -21,10 +21,10 @@ use yii\helpers\StringHelper;
  * row in a database table. The object's attributes are mapped to the columns of the corresponding table.
  * Referencing an Active Record attribute is equivalent to accessing the corresponding table column for that record.
  *
- * As an example, say that the `Customer` ActiveRecord class is associated with the `customer` table.
- * This would mean that the class's `name` attribute is automatically mapped to the `name` column in `customer` table.
- * Thanks to Active Record, assuming the variable `$customer` is an object of type `Customer`, to get the value of
- * the `name` column for the table row, you can use the expression `$customer->name`.
+ * As an example, say that the `Customer` ActiveRecord class is associated with the `customers` table.
+ * This would mean that the class's `name` attribute is automatically mapped to the `name` column in `customers` table.
+ * Thanks to Active Record, assuming the variable `$customers` is an object of type `Customer`, to get the value of
+ * the `name` column for the table row, you can use the expression `$customers->name`.
  * In this example, Active Record is providing an object-oriented interface for accessing data stored in the database.
  * But Active Record provides much more functionality than this.
  *
@@ -38,7 +38,7 @@ use yii\helpers\StringHelper;
  * {
  *     public static function tableName()
  *     {
- *         return 'customer';
+ *         return 'customers';
  *     }
  * }
  * ```
@@ -96,32 +96,61 @@ class ActiveRecord extends BaseActiveRecord
      */
     const OP_ALL = 0x07;
 
+    /**
+     * Creates an [[ActiveQuery]] instance with a given SQL statement.
+     *
+     * Note that because the SQL statement is already specified, calling additional
+     * query modification methods (such as `where()`, `order()`) on the created [[ActiveQuery]]
+     * instance will have no effect. However, calling `with()`, `asArray()` or `indexBy()` is
+     * still fine.
+     *
+     * Below is an example:
+     *
+     * ~~~
+     * $customers = Customer::findBySql('SELECT * FROM customers')->all();
+     * ~~~
+     *
+     * @param string $sql the SQL statement to be executed
+     * @param array $params parameters to be bound to the SQL statement during execution.
+     * @return ActiveQuery the newly created [[ActiveQuery]] instance
+     */
+    public static function findBySql($sql, $params = [])
+    {
+        $query = static::find();
+        $query->sql = $sql;
+
+        return $query->params($params);
+    }
 
     /**
-     * Loads default values from database table schema
-     *
-     * To enable loading defaults for every newly created record, you can add a call to this method to [[init()]]:
-     *
-     * ```php
-     * public function init()
-     * {
-     *     parent::init();
-     *     $this->loadDefaultValues();
-     * }
-     * ```
-     *
-     * @param boolean $skipIfSet whether existing value should be preserved.
-     * This will only set defaults for attributes that are `null`.
-     * @return static the model instance itself.
+     * @inheritdoc
+     * @return ActiveQuery the newly created [[ActiveQuery]] instance.
      */
-    public function loadDefaultValues($skipIfSet = true)
+    public static function find()
     {
-        foreach ($this->getTableSchema()->columns as $column) {
-            if ($column->defaultValue !== null && (!$skipIfSet || $this->{$column->name} === null)) {
-                $this->{$column->name} = $column->defaultValue;
-            }
-        }
-        return $this;
+        return Yii::createObject(ActiveQuery::className(), [get_called_class()]);
+    }
+
+    /**
+     * Updates the whole table using the provided attribute values and conditions.
+     * For example, to change the status to be 1 for all customers whose status is 2:
+     *
+     * ~~~
+     * Customer::updateAll(['status' => 1], 'status = 2');
+     * ~~~
+     *
+     * @param array $attributes attribute values (name-value pairs) to be saved into the table
+     * @param string|array $condition the conditions that will be put in the WHERE part of the UPDATE SQL.
+     * Please refer to [[Query::where()]] on how to specify this parameter.
+     * @param array $params the parameters (name => value) to be bound to the query.
+     * @return integer the number of rows updated
+     */
+    public static function updateAll($attributes, $condition = '', $params = [])
+    {
+        $command = static::getDb()->createCommand();
+        $command->update(static::tableName(), $attributes, $condition, $params);
+
+        return $command->execute();
     }
 
     /**
@@ -136,29 +165,74 @@ class ActiveRecord extends BaseActiveRecord
     }
 
     /**
-     * Creates an [[ActiveQuery]] instance with a given SQL statement.
-     *
-     * Note that because the SQL statement is already specified, calling additional
-     * query modification methods (such as `where()`, `order()`) on the created [[ActiveQuery]]
-     * instance will have no effect. However, calling `with()`, `asArray()` or `indexBy()` is
-     * still fine.
-     *
-     * Below is an example:
-     *
-     * ~~~
-     * $customers = Customer::findBySql('SELECT * FROM customer')->all();
-     * ~~~
-     *
-     * @param string $sql the SQL statement to be executed
-     * @param array $params parameters to be bound to the SQL statement during execution.
-     * @return ActiveQuery the newly created [[ActiveQuery]] instance
+     * Declares the name of the database table associated with this AR class.
+     * By default this method returns the class name as the table name by calling [[Inflector::camel2id()]]
+     * with prefix [[Connection::tablePrefix]]. For example if [[Connection::tablePrefix]] is 'tbl_',
+     * 'Customer' becomes 'tbl_customer', and 'OrderItem' becomes 'tbl_order_item'. You may override this method
+     * if the table is not named after this convention.
+     * @return string the table name
      */
-    public static function findBySql($sql, $params = [])
+    public static function tableName()
     {
-        $query = static::find();
-        $query->sql = $sql;
+        return '{{%' . Inflector::camel2id(StringHelper::basename(get_called_class()), '_') . '}}';
+    }
 
-        return $query->params($params);
+    /**
+     * Updates the whole table using the provided counter changes and conditions.
+     * For example, to increment all customers' age by 1,
+     *
+     * ~~~
+     * Customer::updateAllCounters(['age' => 1]);
+     * ~~~
+     *
+     * @param array $counters the counters to be updated (attribute name => increment value).
+     * Use negative values if you want to decrement the counters.
+     * @param string|array $condition the conditions that will be put in the WHERE part of the UPDATE SQL.
+     * Please refer to [[Query::where()]] on how to specify this parameter.
+     * @param array $params the parameters (name => value) to be bound to the query.
+     * Do not name the parameters as `:bp0`, `:bp1`, etc., because they are used internally by this method.
+     * @return integer the number of rows updated
+     */
+    public static function updateAllCounters($counters, $condition = '', $params = [])
+    {
+        $n = 0;
+        foreach ($counters as $name => $value) {
+            $counters[$name] = new Expression("[[$name]]+:bp{$n}", [":bp{$n}" => $value]);
+            $n++;
+        }
+        $command = static::getDb()->createCommand();
+        $command->update(static::tableName(), $counters, $condition, $params);
+
+        return $command->execute();
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public static function populateRecord($record, $row)
+    {
+        $columns = static::getTableSchema()->columns;
+        foreach ($row as $name => $value) {
+            if (isset($columns[$name])) {
+                $row[$name] = $columns[$name]->phpTypecast($value);
+            }
+        }
+        parent::populateRecord($record, $row);
+    }
+
+    /**
+     * Returns the schema information of the DB table associated with this AR class.
+     * @return TableSchema the schema information of the DB table associated with this AR class.
+     * @throws InvalidConfigException if the table for the AR class does not exist.
+     */
+    public static function getTableSchema()
+    {
+        $schema = static::getDb()->getSchema()->getTableSchema(static::tableName());
+        if ($schema !== null) {
+            return $schema;
+        } else {
+            throw new InvalidConfigException("The table does not exist: " . static::tableName());
+        }
     }
 
     /**
@@ -192,117 +266,6 @@ class ActiveRecord extends BaseActiveRecord
     }
 
     /**
-     * Updates the whole table using the provided attribute values and conditions.
-     * For example, to change the status to be 1 for all customers whose status is 2:
-     *
-     * ~~~
-     * Customer::updateAll(['status' => 1], 'status = 2');
-     * ~~~
-     *
-     * @param array $attributes attribute values (name-value pairs) to be saved into the table
-     * @param string|array $condition the conditions that will be put in the WHERE part of the UPDATE SQL.
-     * Please refer to [[Query::where()]] on how to specify this parameter.
-     * @param array $params the parameters (name => value) to be bound to the query.
-     * @return integer the number of rows updated
-     */
-    public static function updateAll($attributes, $condition = '', $params = [])
-    {
-        $command = static::getDb()->createCommand();
-        $command->update(static::tableName(), $attributes, $condition, $params);
-
-        return $command->execute();
-    }
-
-    /**
-     * Updates the whole table using the provided counter changes and conditions.
-     * For example, to increment all customers' age by 1,
-     *
-     * ~~~
-     * Customer::updateAllCounters(['age' => 1]);
-     * ~~~
-     *
-     * @param array $counters the counters to be updated (attribute name => increment value).
-     * Use negative values if you want to decrement the counters.
-     * @param string|array $condition the conditions that will be put in the WHERE part of the UPDATE SQL.
-     * Please refer to [[Query::where()]] on how to specify this parameter.
-     * @param array $params the parameters (name => value) to be bound to the query.
-     * Do not name the parameters as `:bp0`, `:bp1`, etc., because they are used internally by this method.
-     * @return integer the number of rows updated
-     */
-    public static function updateAllCounters($counters, $condition = '', $params = [])
-    {
-        $n = 0;
-        foreach ($counters as $name => $value) {
-            $counters[$name] = new Expression("[[$name]]+:bp{$n}", [":bp{$n}" => $value]);
-            $n++;
-        }
-        $command = static::getDb()->createCommand();
-        $command->update(static::tableName(), $counters, $condition, $params);
-
-        return $command->execute();
-    }
-
-    /**
-     * Deletes rows in the table using the provided conditions.
-     * WARNING: If you do not specify any condition, this method will delete ALL rows in the table.
-     *
-     * For example, to delete all customers whose status is 3:
-     *
-     * ~~~
-     * Customer::deleteAll('status = 3');
-     * ~~~
-     *
-     * @param string|array $condition the conditions that will be put in the WHERE part of the DELETE SQL.
-     * Please refer to [[Query::where()]] on how to specify this parameter.
-     * @param array $params the parameters (name => value) to be bound to the query.
-     * @return integer the number of rows deleted
-     */
-    public static function deleteAll($condition = '', $params = [])
-    {
-        $command = static::getDb()->createCommand();
-        $command->delete(static::tableName(), $condition, $params);
-
-        return $command->execute();
-    }
-
-    /**
-     * @inheritdoc
-     * @return ActiveQuery the newly created [[ActiveQuery]] instance.
-     */
-    public static function find()
-    {
-        return Yii::createObject(ActiveQuery::className(), [get_called_class()]);
-    }
-
-    /**
-     * Declares the name of the database table associated with this AR class.
-     * By default this method returns the class name as the table name by calling [[Inflector::camel2id()]]
-     * with prefix [[Connection::tablePrefix]]. For example if [[Connection::tablePrefix]] is 'tbl_',
-     * 'Customer' becomes 'tbl_customer', and 'OrderItem' becomes 'tbl_order_item'. You may override this method
-     * if the table is not named after this convention.
-     * @return string the table name
-     */
-    public static function tableName()
-    {
-        return '{{%' . Inflector::camel2id(StringHelper::basename(get_called_class()), '_') . '}}';
-    }
-
-    /**
-     * Returns the schema information of the DB table associated with this AR class.
-     * @return TableSchema the schema information of the DB table associated with this AR class.
-     * @throws InvalidConfigException if the table for the AR class does not exist.
-     */
-    public static function getTableSchema()
-    {
-        $schema = static::getDb()->getSchema()->getTableSchema(static::tableName());
-        if ($schema !== null) {
-            return $schema;
-        } else {
-            throw new InvalidConfigException("The table does not exist: " . static::tableName());
-        }
-    }
-
-    /**
      * Returns the primary key name(s) for this AR class.
      * The default implementation will return the primary key(s) as declared
      * in the DB table that is associated with this AR class.
@@ -321,6 +284,33 @@ class ActiveRecord extends BaseActiveRecord
     }
 
     /**
+     * Loads default values from database table schema
+     *
+     * To enable loading defaults for every newly created record, you can add a call to this method to [[init()]]:
+     *
+     * ```php
+     * public function init()
+     * {
+     *     parent::init();
+     *     $this->loadDefaultValues();
+     * }
+     * ```
+     *
+     * @param boolean $skipIfSet whether existing value should be preserved.
+     * This will only set defaults for attributes that are `null`.
+     * @return static the model instance itself.
+     */
+    public function loadDefaultValues($skipIfSet = true)
+    {
+        foreach ($this->getTableSchema()->columns as $column) {
+            if ($column->defaultValue !== null && (!$skipIfSet || $this->{$column->name} === null)) {
+                $this->{$column->name} = $column->defaultValue;
+            }
+        }
+        return $this;
+    }
+
+    /**
      * Returns the list of all attribute names of the model.
      * The default implementation will return all column names of the table associated with this AR class.
      * @return array list of attribute names.
@@ -328,52 +318,6 @@ class ActiveRecord extends BaseActiveRecord
     public function attributes()
     {
         return array_keys(static::getTableSchema()->columns);
-    }
-
-    /**
-     * Declares which DB operations should be performed within a transaction in different scenarios.
-     * The supported DB operations are: [[OP_INSERT]], [[OP_UPDATE]] and [[OP_DELETE]],
-     * which correspond to the [[insert()]], [[update()]] and [[delete()]] methods, respectively.
-     * By default, these methods are NOT enclosed in a DB transaction.
-     *
-     * In some scenarios, to ensure data consistency, you may want to enclose some or all of them
-     * in transactions. You can do so by overriding this method and returning the operations
-     * that need to be transactional. For example,
-     *
-     * ~~~
-     * return [
-     *     'admin' => self::OP_INSERT,
-     *     'api' => self::OP_INSERT | self::OP_UPDATE | self::OP_DELETE,
-     *     // the above is equivalent to the following:
-     *     // 'api' => self::OP_ALL,
-     *
-     * ];
-     * ~~~
-     *
-     * The above declaration specifies that in the "admin" scenario, the insert operation ([[insert()]])
-     * should be done in a transaction; and in the "api" scenario, all the operations should be done
-     * in a transaction.
-     *
-     * @return array the declarations of transactional operations. The array keys are scenarios names,
-     * and the array values are the corresponding transaction operations.
-     */
-    public function transactions()
-    {
-        return [];
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public static function populateRecord($record, $row)
-    {
-        $columns = static::getTableSchema()->columns;
-        foreach ($row as $name => $value) {
-            if (isset($columns[$name])) {
-                $row[$name] = $columns[$name]->phpTypecast($value);
-            }
-        }
-        parent::populateRecord($record, $row);
     }
 
     /**
@@ -398,13 +342,13 @@ class ActiveRecord extends BaseActiveRecord
      * If the table's primary key is auto-incremental and is null during insertion,
      * it will be populated with the actual value after insertion.
      *
-     * For example, to insert a customer record:
+     * For example, to insert a customers record:
      *
      * ~~~
-     * $customer = new Customer;
-     * $customer->name = $name;
-     * $customer->email = $email;
-     * $customer->insert();
+     * $customers = new Customer;
+     * $customers->name = $name;
+     * $customers->email = $email;
+     * $customers->insert();
      * ~~~
      *
      * @param boolean $runValidation whether to perform validation before saving the record.
@@ -438,6 +382,51 @@ class ActiveRecord extends BaseActiveRecord
             $transaction->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Returns a value indicating whether the specified operation is transactional in the current [[scenario]].
+     * @param integer $operation the operation to check. Possible values are [[OP_INSERT]], [[OP_UPDATE]] and [[OP_DELETE]].
+     * @return boolean whether the specified operation is transactional in the current [[scenario]].
+     */
+    public function isTransactional($operation)
+    {
+        $scenario = $this->getScenario();
+        $transactions = $this->transactions();
+
+        return isset($transactions[$scenario]) && ($transactions[$scenario] & $operation);
+    }
+
+    /**
+     * Declares which DB operations should be performed within a transaction in different scenarios.
+     * The supported DB operations are: [[OP_INSERT]], [[OP_UPDATE]] and [[OP_DELETE]],
+     * which correspond to the [[insert()]], [[update()]] and [[delete()]] methods, respectively.
+     * By default, these methods are NOT enclosed in a DB transaction.
+     *
+     * In some scenarios, to ensure data consistency, you may want to enclose some or all of them
+     * in transactions. You can do so by overriding this method and returning the operations
+     * that need to be transactional. For example,
+     *
+     * ~~~
+     * return [
+     *     'admin' => self::OP_INSERT,
+     *     'api' => self::OP_INSERT | self::OP_UPDATE | self::OP_DELETE,
+     *     // the above is equivalent to the following:
+     *     // 'api' => self::OP_ALL,
+     *
+     * ];
+     * ~~~
+     *
+     * The above declaration specifies that in the "admin" scenario, the insert operation ([[insert()]])
+     * should be done in a transaction; and in the "api" scenario, all the operations should be done
+     * in a transaction.
+     *
+     * @return array the declarations of transactional operations. The array keys are scenarios names,
+     * and the array values are the corresponding transaction operations.
+     */
+    public function transactions()
+    {
+        return [];
     }
 
     /**
@@ -500,13 +489,13 @@ class ActiveRecord extends BaseActiveRecord
      *
      * Only the [[dirtyAttributes|changed attribute values]] will be saved into database.
      *
-     * For example, to update a customer record:
+     * For example, to update a customers record:
      *
      * ~~~
-     * $customer = Customer::findOne($id);
-     * $customer->name = $name;
-     * $customer->email = $email;
-     * $customer->update();
+     * $customers = Customer::findOne($id);
+     * $customers->name = $name;
+     * $customers->email = $email;
+     * $customers->update();
      * ~~~
      *
      * Note that it is possible the update does not affect any row in the table.
@@ -627,6 +616,29 @@ class ActiveRecord extends BaseActiveRecord
     }
 
     /**
+     * Deletes rows in the table using the provided conditions.
+     * WARNING: If you do not specify any condition, this method will delete ALL rows in the table.
+     *
+     * For example, to delete all customers whose status is 3:
+     *
+     * ~~~
+     * Customer::deleteAll('status = 3');
+     * ~~~
+     *
+     * @param string|array $condition the conditions that will be put in the WHERE part of the DELETE SQL.
+     * Please refer to [[Query::where()]] on how to specify this parameter.
+     * @param array $params the parameters (name => value) to be bound to the query.
+     * @return integer the number of rows deleted
+     */
+    public static function deleteAll($condition = '', $params = [])
+    {
+        $command = static::getDb()->createCommand();
+        $command->delete(static::tableName(), $condition, $params);
+
+        return $command->execute();
+    }
+
+    /**
      * Returns a value indicating whether the given active record is the same as the current one.
      * The comparison is made by comparing the table names and the primary key values of the two active records.
      * If one of the records [[isNewRecord|is new]] they are also considered not equal.
@@ -640,18 +652,5 @@ class ActiveRecord extends BaseActiveRecord
         }
 
         return $this->tableName() === $record->tableName() && $this->getPrimaryKey() === $record->getPrimaryKey();
-    }
-
-    /**
-     * Returns a value indicating whether the specified operation is transactional in the current [[scenario]].
-     * @param integer $operation the operation to check. Possible values are [[OP_INSERT]], [[OP_UPDATE]] and [[OP_DELETE]].
-     * @return boolean whether the specified operation is transactional in the current [[scenario]].
-     */
-    public function isTransactional($operation)
-    {
-        $scenario = $this->getScenario();
-        $transactions = $this->transactions();
-
-        return isset($transactions[$scenario]) && ($transactions[$scenario] & $operation);
     }
 }

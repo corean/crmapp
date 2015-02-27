@@ -28,65 +28,6 @@ interface ActiveRecordInterface
     public static function primaryKey();
 
     /**
-     * Returns the list of all attribute names of the record.
-     * @return array list of attribute names.
-     */
-    public function attributes();
-
-    /**
-     * Returns the named attribute value.
-     * If this record is the result of a query and the attribute is not loaded,
-     * null will be returned.
-     * @param string $name the attribute name
-     * @return mixed the attribute value. Null if the attribute is not set or does not exist.
-     * @see hasAttribute()
-     */
-    public function getAttribute($name);
-
-    /**
-     * Sets the named attribute value.
-     * @param string $name the attribute name.
-     * @param mixed $value the attribute value.
-     * @see hasAttribute()
-     */
-    public function setAttribute($name, $value);
-
-    /**
-     * Returns a value indicating whether the record has an attribute with the specified name.
-     * @param string $name the name of the attribute
-     * @return boolean whether the record has an attribute with the specified name.
-     */
-    public function hasAttribute($name);
-
-    /**
-     * Returns the primary key value(s).
-     * @param boolean $asArray whether to return the primary key value as an array. If true,
-     * the return value will be an array with attribute names as keys and attribute values as values.
-     * Note that for composite primary keys, an array will always be returned regardless of this parameter value.
-     * @return mixed the primary key value. An array (attribute name => attribute value) is returned if the primary key
-     * is composite or `$asArray` is true. A string is returned otherwise (null will be returned if
-     * the key value is null).
-     */
-    public function getPrimaryKey($asArray = false);
-
-    /**
-     * Returns the old primary key value(s).
-     * This refers to the primary key value that is populated into the record
-     * after executing a find method (e.g. find(), findOne()).
-     * The value remains unchanged even if the primary key attribute is manually assigned with a different value.
-     * @param boolean $asArray whether to return the primary key value as an array. If true,
-     * the return value will be an array with column name as key and column value as value.
-     * If this is false (default), a scalar value will be returned for non-composite primary key.
-     * @property mixed The old primary key value. An array (column name => column value) is
-     * returned if the primary key is composite. A string is returned otherwise (null will be
-     * returned if the key value is null).
-     * @return mixed the old primary key value. An array (column name => column value) is returned if the primary key
-     * is composite or `$asArray` is true. A string is returned otherwise (null will be returned if
-     * the key value is null).
-     */
-    public function getOldPrimaryKey($asArray = false);
-
-    /**
      * Returns a value indicating whether the given set of attributes represents the primary key for this model
      * @param array $keys the set of attributes to check
      * @return boolean whether the given set of attributes represents the primary key for this model
@@ -101,8 +42,8 @@ interface ActiveRecordInterface
      * populated ActiveRecord instances. For example,
      *
      * ```php
-     * // find the customer whose ID is 1
-     * $customer = Customer::find()->where(['id' => 1])->one();
+     * // find the customers whose ID is 1
+     * $customers = Customer::find()->where(['id' => 1])->one();
      *
      * // find all active customers and order them by their age:
      * $customers = Customer::find()
@@ -139,11 +80,11 @@ interface ActiveRecordInterface
      * }
      *
      * // Use andWhere()/orWhere() to apply the default condition
-     * // SELECT FROM customer WHERE `deleted`=:deleted AND age>30
+     * // SELECT FROM customers WHERE `deleted`=:deleted AND age>30
      * $customers = Customer::find()->andWhere('age>30')->all();
      *
      * // Use where() to ignore the default condition
-     * // SELECT FROM customer WHERE age>30
+     * // SELECT FROM customers WHERE age>30
      * $customers = Customer::find()->where('age>30')->all();
      *
      * @return static|ActiveQueryInterface the newly created [[ActiveQueryInterface|ActiveQuery]] instance.
@@ -164,17 +105,17 @@ interface ActiveRecordInterface
      * [[ActiveRecordInterface|ActiveRecord]] instance. For example,
      *
      * ```php
-     * // find a single customer whose primary key value is 10
-     * $customer = Customer::findOne(10);
+     * // find a single customers whose primary key value is 10
+     * $customers = Customer::findOne(10);
      *
      * // the above code is equivalent to:
-     * $customer = Customer::find()->where(['id' => 10])->one();
+     * $customers = Customer::find()->where(['id' => 10])->one();
      *
-     * // find the first customer whose age is 30 and whose status is 1
-     * $customer = Customer::findOne(['age' => 30, 'status' => 1]);
+     * // find the first customers whose age is 30 and whose status is 1
+     * $customers = Customer::findOne(['age' => 30, 'status' => 1]);
      *
      * // the above code is equivalent to:
-     * $customer = Customer::find()->where(['age' => 30, 'status' => 1])->one();
+     * $customers = Customer::find()->where(['age' => 30, 'status' => 1])->one();
      * ```
      *
      * @param mixed $condition primary key value or a set of column values
@@ -259,18 +200,83 @@ interface ActiveRecordInterface
     public static function deleteAll($condition = null);
 
     /**
+     * Returns the connection used by this AR class.
+     * @return mixed the database connection used by this AR class.
+     */
+    public static function getDb();
+
+    /**
+     * Returns the list of all attribute names of the record.
+     * @return array list of attribute names.
+     */
+    public function attributes();
+
+    /**
+     * Returns the named attribute value.
+     * If this record is the result of a query and the attribute is not loaded,
+     * null will be returned.
+     * @param string $name the attribute name
+     * @return mixed the attribute value. Null if the attribute is not set or does not exist.
+     * @see hasAttribute()
+     */
+    public function getAttribute($name);
+
+    /**
+     * Sets the named attribute value.
+     * @param string $name the attribute name.
+     * @param mixed $value the attribute value.
+     * @see hasAttribute()
+     */
+    public function setAttribute($name, $value);
+
+    /**
+     * Returns a value indicating whether the record has an attribute with the specified name.
+     * @param string $name the name of the attribute
+     * @return boolean whether the record has an attribute with the specified name.
+     */
+    public function hasAttribute($name);
+
+    /**
+     * Returns the primary key value(s).
+     * @param boolean $asArray whether to return the primary key value as an array. If true,
+     * the return value will be an array with attribute names as keys and attribute values as values.
+     * Note that for composite primary keys, an array will always be returned regardless of this parameter value.
+     * @return mixed the primary key value. An array (attribute name => attribute value) is returned if the primary key
+     * is composite or `$asArray` is true. A string is returned otherwise (null will be returned if
+     * the key value is null).
+     */
+    public function getPrimaryKey($asArray = false);
+
+    /**
+     * Returns the old primary key value(s).
+     * This refers to the primary key value that is populated into the record
+     * after executing a find method (e.g. find(), findOne()).
+     * The value remains unchanged even if the primary key attribute is manually assigned with a different value.
+     * @param boolean $asArray whether to return the primary key value as an array. If true,
+     * the return value will be an array with column name as key and column value as value.
+     * If this is false (default), a scalar value will be returned for non-composite primary key.
+     * @property mixed The old primary key value. An array (column name => column value) is
+     * returned if the primary key is composite. A string is returned otherwise (null will be
+     * returned if the key value is null).
+     * @return mixed the old primary key value. An array (column name => column value) is returned if the primary key
+     * is composite or `$asArray` is true. A string is returned otherwise (null will be returned if
+     * the key value is null).
+     */
+    public function getOldPrimaryKey($asArray = false);
+
+    /**
      * Saves the current record.
      *
      * This method will call [[insert()]] when [[getIsNewRecord()|isNewRecord]] is true, or [[update()]]
      * when [[getIsNewRecord()|isNewRecord]] is false.
      *
-     * For example, to save a customer record:
+     * For example, to save a customers record:
      *
      * ~~~
-     * $customer = new Customer; // or $customer = Customer::findOne($id);
-     * $customer->name = $name;
-     * $customer->email = $email;
-     * $customer->save();
+     * $customers = new Customer; // or $customers = Customer::findOne($id);
+     * $customers->name = $name;
+     * $customers->email = $email;
+     * $customers->save();
      * ~~~
      *
      * @param boolean $runValidation whether to perform validation before saving the record.
@@ -288,10 +294,10 @@ interface ActiveRecordInterface
      * Usage example:
      *
      * ```php
-     * $customer = new Customer;
-     * $customer->name = $name;
-     * $customer->email = $email;
-     * $customer->insert();
+     * $customers = new Customer;
+     * $customers->name = $name;
+     * $customers->email = $email;
+     * $customers->insert();
      * ```
      *
      * @param boolean $runValidation whether to perform validation before saving the record.
@@ -308,10 +314,10 @@ interface ActiveRecordInterface
      * Usage example:
      *
      * ```php
-     * $customer = Customer::findOne($id);
-     * $customer->name = $name;
-     * $customer->email = $email;
-     * $customer->update();
+     * $customers = Customer::findOne($id);
+     * $customers->name = $name;
+     * $customers->email = $email;
+     * $customers->update();
      * ```
      *
      * @param boolean $runValidation whether to perform validation before saving the record.
@@ -391,10 +397,4 @@ interface ActiveRecordInterface
      * If true, the model containing the foreign key will be deleted.
      */
     public function unlink($name, $model, $delete = false);
-
-    /**
-     * Returns the connection used by this AR class.
-     * @return mixed the database connection used by this AR class.
-     */
-    public static function getDb();
 }
