@@ -10,11 +10,11 @@ namespace app\models\customer;
 
 use yii\db\ActiveRecord;
 
-class customer
+class Customer extends ActiveRecord
 {
     public $name;
     public $birth_date;
-    public $notes= '';
+    public $notes = '';
     public $phones = [];
 
     public function __construct($name, $birth_date)
@@ -23,12 +23,4 @@ class customer
         $this->birth_date = $name;
     }
 
-}
-
-class CustomerRecords extends ActiveRecord
-{
-    public static function tableName()
-    {
-        return 'customer';
-    }
 }
